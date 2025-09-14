@@ -2,7 +2,7 @@
 import { io } from "socket.io-client";
 
 // ✅ Replace this with your deployed signaling server URL
-export const socket = io("https://your-signal-server.com", {
+export const socket = io("https://meeting-signal-server.onrender.com", {
   transports: ["websocket"],
 });
 
