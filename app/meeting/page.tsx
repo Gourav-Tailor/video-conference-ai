@@ -20,8 +20,6 @@ export default function MeetingPage() {
   const [remoteVideos, setRemoteVideos] = useState<{ [id: string]: MediaStream }>({});
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
-  const [showParticipants, setShowParticipants] = useState(false);
-  const [showChat, setShowChat] = useState(false);
 
   // WebRTC + Socket logic
   useEffect(() => {
@@ -30,7 +28,6 @@ export default function MeetingPage() {
       setLocalStream(stream);
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-      // New user joined
       socket.on("user-joined", async (id: string) => {
         const pc = createPeerConnection(id, stream, setRemoteVideos);
         peers[id] = pc;
@@ -39,7 +36,6 @@ export default function MeetingPage() {
         socket.emit("offer", { to: id, offer });
       });
 
-      // Incoming offer
       socket.on("offer", async ({ from, offer }) => {
         const pc = createPeerConnection(from, stream, setRemoteVideos);
         peers[from] = pc;
@@ -49,13 +45,11 @@ export default function MeetingPage() {
         socket.emit("answer", { to: from, answer });
       });
 
-      // Incoming answer
       socket.on("answer", async ({ from, answer }) => {
         const pc = peers[from];
         if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
       });
 
-      // ICE candidates
       socket.on("ice-candidate", async ({ from, candidate }) => {
         const pc = peers[from];
         if (pc && candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
@@ -80,45 +74,45 @@ export default function MeetingPage() {
     }
   }, [micOn, videoOn, localStream]);
 
+  // Calculate total participants
+  const allVideos = [{ id: "local", stream: localStream }, ...Object.entries(remoteVideos).map(([id, stream]) => ({ id, stream }))];
+
+  // Determine grid rows and columns dynamically
+  const total = allVideos.length;
+  const cols = total <= 1 ? 1 : total <= 4 ? 2 : 3;
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100 relative">
-      {/* Header */}
-      <header className="p-4 border-b bg-white shadow-sm flex justify-between items-center">
-        <h1 className="text-lg font-semibold">ConferX Meeting</h1>
-        <p className="text-sm text-gray-500">Meeting ID: 123-456-789</p>
-      </header>
-
-      {/* Video grid */}
-      <main className="flex-1 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 justify-center">
-        {/* Local video */}
-        <video
-          ref={localVideoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-64 h-48 bg-black rounded-lg shadow-md"
-        />
-
-        {/* Remote videos */}
-        {Object.entries(remoteVideos).map(([id, stream]) => (
+    <div className="min-h-screen flex flex-col bg-gray-900 relative">
+      {/* Video Grid */}
+      <main
+        className={`flex-1 grid gap-2 p-2`}
+        style={{
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          gridAutoRows: `minmax(200px, 1fr)`,
+        }}
+      >
+        {allVideos.map(({ id, stream }) => (
           <video
             key={id}
             autoPlay
             playsInline
-            className="w-64 h-48 bg-black rounded-lg shadow-md"
+            muted={id === "local"}
+            className={`w-full h-full object-cover rounded-md shadow-lg ${
+              id === "local" ? "transform scale-x-[-1]" : ""
+            }`}
             ref={(videoEl) => {
-              if (videoEl) videoEl.srcObject = stream;
+              if (videoEl && stream) videoEl.srcObject = stream;
             }}
           />
         ))}
       </main>
 
       {/* Footer Controls */}
-      <footer className="p-4 border-t bg-white flex items-center justify-center gap-4 sticky bottom-0 z-10 flex-wrap">
+      <footer className="p-4 bg-gray-800 flex items-center justify-center gap-4 sticky bottom-0 z-10 flex-wrap">
         <Button
           variant={micOn ? "default" : "destructive"}
           size="icon"
-          className="rounded-full h-14 w-14 shadow-md"
+          className="rounded-full h-14 w-14"
           onClick={() => setMicOn(!micOn)}
         >
           {micOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
@@ -127,7 +121,7 @@ export default function MeetingPage() {
         <Button
           variant={videoOn ? "default" : "destructive"}
           size="icon"
-          className="rounded-full h-14 w-14 shadow-md"
+          className="rounded-full h-14 w-14"
           onClick={() => setVideoOn(!videoOn)}
         >
           {videoOn ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
@@ -136,25 +130,7 @@ export default function MeetingPage() {
         <Button
           variant="secondary"
           size="icon"
-          className="rounded-full h-14 w-14 shadow-md"
-          onClick={() => setShowParticipants(true)}
-        >
-          <Users className="h-6 w-6" />
-        </Button>
-
-        <Button
-          variant="secondary"
-          size="icon"
-          className="rounded-full h-14 w-14 shadow-md"
-          onClick={() => setShowChat(true)}
-        >
-          <MessageSquare className="h-6 w-6" />
-        </Button>
-
-        <Button
-          variant="destructive"
-          size="icon"
-          className="rounded-full h-14 w-14 shadow-md"
+          className="rounded-full h-14 w-14"
           onClick={() => (window.location.href = "/")}
         >
           <PhoneOff className="h-6 w-6" />
