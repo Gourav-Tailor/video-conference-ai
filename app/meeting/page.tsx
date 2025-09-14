@@ -1,53 +1,57 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { socket, peers, remoteStreams, createPeerConnection } from "@/utils/rtc";
+import { socket, peers, createPeerConnection } from "@/utils/rtc";
 
 export default function MeetingPage() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const [remoteVideos, setRemoteVideos] = useState<{ id: string; stream: MediaStream }[]>([]);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteVideos, setRemoteVideos] = useState<{ [id: string]: MediaStream }>({});
 
   useEffect(() => {
-    let localStream: MediaStream;
-
     const init = async () => {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // Get local media (camera + mic)
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(stream);
+
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = localStream;
+        localVideoRef.current.srcObject = stream;
       }
 
-      socket.emit("join", "main-room");
-
-      socket.on("user-joined", async (id) => {
-        const pc = createPeerConnection(id, localStream, setRemoteVideos);
-        peers[id] = pc;
+      // Listen for other users joining
+      socket.on("user-joined", async (id: string) => {
+        const pc = createPeerConnection(id, stream, setRemoteVideos);
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        socket.emit("offer", { to: id, sdp: offer });
+
+        socket.emit("offer", { to: id, offer });
       });
 
-      socket.on("offer", async ({ from, sdp }) => {
-        const pc = createPeerConnection(from, localStream, setRemoteVideos);
-        peers[from] = pc;
+      // Listen for incoming offers
+      socket.on("offer", async ({ from, offer }) => {
+        const pc = createPeerConnection(from, stream, setRemoteVideos);
 
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        socket.emit("answer", { to: from, sdp: answer });
+
+        socket.emit("answer", { to: from, answer });
       });
 
-      socket.on("answer", async ({ from, sdp }) => {
-        await peers[from].setRemoteDescription(new RTCSessionDescription(sdp));
+      // Listen for answers
+      socket.on("answer", async ({ from, answer }) => {
+        const pc = peers[from];
+        if (pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        }
       });
 
-      socket.on("ice-candidate", ({ from, candidate }) => {
-        peers[from].addIceCandidate(new RTCIceCandidate(candidate));
-      });
-
-      socket.on("user-left", (id) => {
-        delete peers[id];
-        delete remoteStreams[id];
-        setRemoteVideos(Object.entries(remoteStreams).map(([id, stream]) => ({ id, stream })));
+      // Listen for ICE candidates
+      socket.on("ice-candidate", async ({ from, candidate }) => {
+        const pc = peers[from];
+        if (pc && candidate) {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        }
       });
     };
 
@@ -58,24 +62,33 @@ export default function MeetingPage() {
       socket.off("offer");
       socket.off("answer");
       socket.off("ice-candidate");
-      socket.off("user-left");
     };
   }, []);
 
   return (
-    <div className="flex flex-col items-center p-6">
-      <h1 className="text-xl font-bold mb-4">Meeting Room</h1>
-      <video ref={localVideoRef} autoPlay playsInline muted className="w-1/3 rounded-lg border" />
-      <div className="grid grid-cols-2 gap-4 mt-4">
-        {remoteVideos.map(({ id, stream }) => (
+    <div className="flex flex-col items-center">
+      <h1 className="text-xl font-bold">Meeting Room</h1>
+
+      {/* Local video */}
+      <video
+        ref={localVideoRef}
+        autoPlay
+        playsInline
+        muted
+        className="w-64 h-48 bg-black rounded-lg m-2"
+      />
+
+      {/* Remote videos */}
+      <div className="grid grid-cols-2 gap-4">
+        {Object.entries(remoteVideos).map(([id, stream]) => (
           <video
             key={id}
             autoPlay
             playsInline
-            ref={(el) => {
-              if (el) el.srcObject = stream;
+            className="w-64 h-48 bg-black rounded-lg m-2"
+            ref={(videoEl) => {
+              if (videoEl) videoEl.srcObject = stream;
             }}
-            className="w-64 rounded-lg border"
           />
         ))}
       </div>
