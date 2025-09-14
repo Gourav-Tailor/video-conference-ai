@@ -3,16 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { socket, peers, createPeerConnection } from "@/utils/rtc";
 import { Button } from "@/components/ui/button";
-import {
-  Mic,
-  MicOff,
-  Video,
-  VideoOff,
-  PhoneOff,
-  Users,
-  MessageSquare,
-  X,
-} from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
 
 export default function MeetingPage() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -21,7 +12,6 @@ export default function MeetingPage() {
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
 
-  // WebRTC + Socket logic
   useEffect(() => {
     const init = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -66,7 +56,6 @@ export default function MeetingPage() {
     };
   }, []);
 
-  // Toggle mic/video
   useEffect(() => {
     if (localStream) {
       localStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
@@ -74,10 +63,11 @@ export default function MeetingPage() {
     }
   }, [micOn, videoOn, localStream]);
 
-  // Calculate total participants
-  const allVideos = [{ id: "local", stream: localStream }, ...Object.entries(remoteVideos).map(([id, stream]) => ({ id, stream }))];
+  const allVideos = [
+    { id: "local", stream: localStream },
+    ...Object.entries(remoteVideos).map(([id, stream]) => ({ id, stream })),
+  ];
 
-  // Determine grid rows and columns dynamically
   const total = allVideos.length;
   const cols = total <= 1 ? 1 : total <= 4 ? 2 : 3;
 
@@ -85,10 +75,10 @@ export default function MeetingPage() {
     <div className="min-h-screen flex flex-col bg-gray-900 relative">
       {/* Video Grid */}
       <main
-        className={`flex-1 grid gap-2 p-2`}
+        className="flex-1 grid gap-2 p-2 justify-center items-center"
         style={{
           gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gridAutoRows: `minmax(200px, 1fr)`,
+          gridAutoRows: `1fr`,
         }}
       >
         {allVideos.map(({ id, stream }) => (
@@ -97,9 +87,7 @@ export default function MeetingPage() {
             autoPlay
             playsInline
             muted={id === "local"}
-            className={`w-full h-full object-cover rounded-md shadow-lg ${
-              id === "local" ? "transform scale-x-[-1]" : ""
-            }`}
+            className="w-full max-w-[400px] max-h-[300px] aspect-video object-cover rounded-md shadow-lg transform scale-x-[-1]"
             ref={(videoEl) => {
               if (videoEl && stream) videoEl.srcObject = stream;
             }}
