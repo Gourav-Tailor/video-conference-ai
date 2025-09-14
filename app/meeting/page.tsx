@@ -17,9 +17,7 @@ import {
 export default function MeetingPage() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteVideos, setRemoteVideos] = useState<{ [id: string]: MediaStream }>(
-    {}
-  );
+  const [remoteVideos, setRemoteVideos] = useState<{ [id: string]: MediaStream }>({});
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
   const [showParticipants, setShowParticipants] = useState(false);
@@ -32,26 +30,32 @@ export default function MeetingPage() {
       setLocalStream(stream);
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
+      // New user joined
       socket.on("user-joined", async (id: string) => {
         const pc = createPeerConnection(id, stream, setRemoteVideos);
+        peers[id] = pc;
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socket.emit("offer", { to: id, offer });
       });
 
+      // Incoming offer
       socket.on("offer", async ({ from, offer }) => {
         const pc = createPeerConnection(from, stream, setRemoteVideos);
+        peers[from] = pc;
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { to: from, answer });
       });
 
+      // Incoming answer
       socket.on("answer", async ({ from, answer }) => {
         const pc = peers[from];
         if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
       });
 
+      // ICE candidates
       socket.on("ice-candidate", async ({ from, candidate }) => {
         const pc = peers[from];
         if (pc && candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
@@ -68,11 +72,11 @@ export default function MeetingPage() {
     };
   }, []);
 
-  // Toggle mic/video on local stream
+  // Toggle mic/video
   useEffect(() => {
     if (localStream) {
-      localStream.getAudioTracks().forEach((track) => (track.enabled = micOn));
-      localStream.getVideoTracks().forEach((track) => (track.enabled = videoOn));
+      localStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
+      localStream.getVideoTracks().forEach((t) => (t.enabled = videoOn));
     }
   }, [micOn, videoOn, localStream]);
 
@@ -84,9 +88,9 @@ export default function MeetingPage() {
         <p className="text-sm text-gray-500">Meeting ID: 123-456-789</p>
       </header>
 
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden p-4 gap-4 flex-wrap justify-center">
-        {/* Local Video */}
+      {/* Video grid */}
+      <main className="flex-1 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 justify-center">
+        {/* Local video */}
         <video
           ref={localVideoRef}
           autoPlay
@@ -95,7 +99,7 @@ export default function MeetingPage() {
           className="w-64 h-48 bg-black rounded-lg shadow-md"
         />
 
-        {/* Remote Videos */}
+        {/* Remote videos */}
         {Object.entries(remoteVideos).map(([id, stream]) => (
           <video
             key={id}
@@ -107,66 +111,7 @@ export default function MeetingPage() {
             }}
           />
         ))}
-      </div>
-
-      {/* Mobile Overlays (Participants / Chat) */}
-      {showParticipants && (
-        <div className="md:hidden absolute inset-0 bg-black/50 z-20 flex">
-          <div className="bg-white w-72 max-w-full h-full shadow-xl p-4 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="font-semibold text-gray-700">Participants</h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowParticipants(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            <ul className="space-y-2 overflow-y-auto">
-              {[...Array(6)].map((_, i) => (
-                <li
-                  key={i}
-                  className="p-2 rounded-lg bg-gray-50 border text-sm text-gray-700"
-                >
-                  User {i + 1}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {showChat && (
-        <div className="md:hidden absolute inset-0 bg-black/50 z-20 flex">
-          <div className="bg-white w-full h-3/4 mt-auto shadow-xl flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="font-semibold text-gray-700">Chat</h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowChat(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
-              <div className="p-2 bg-gray-100 rounded-lg">User1: Hello 👋</div>
-              <div className="p-2 bg-indigo-100 rounded-lg self-end">
-                You: Hi there!
-              </div>
-            </div>
-            <div className="p-3 border-t flex gap-2">
-              <input
-                type="text"
-                placeholder="Type a message..."
-                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <Button size="sm">Send</Button>
-            </div>
-          </div>
-        </div>
-      )}
+      </main>
 
       {/* Footer Controls */}
       <footer className="p-4 border-t bg-white flex items-center justify-center gap-4 sticky bottom-0 z-10 flex-wrap">
