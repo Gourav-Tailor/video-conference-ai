@@ -1,4 +1,4 @@
-// utils/rtc.ts
+// utils/rtc.ts (Unchanged except for comments)
 import { io } from "socket.io-client";
 
 // ✅ Replace this with your deployed signaling server URL

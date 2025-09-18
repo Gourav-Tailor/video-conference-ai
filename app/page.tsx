@@ -1,14 +1,16 @@
-// app/page.tsx (Next.js App Router)
-// or pages/index.tsx if using Pages Router
+// app/page.tsx (Home page with room code input)
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { VideoIcon } from "lucide-react";
 
 export default function Home() {
   const router = useRouter();
+  const [roomCode, setRoomCode] = useState('');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-4">
@@ -30,11 +32,20 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Room Code Input */}
+          <Input
+            placeholder="Enter room code (e.g., 1234)"
+            value={roomCode}
+            onChange={(e) => setRoomCode(e.target.value)}
+            className="w-full rounded-xl text-lg"
+          />
+
           {/* CTA Button */}
           <Button
             size="lg"
             className="w-full rounded-xl text-lg font-semibold shadow-md hover:shadow-lg transition bg-indigo-600 hover:bg-indigo-700"
-            onClick={() => router.push("/meeting")}
+            onClick={() => roomCode && router.push(`/meeting/${roomCode}`)}
+            disabled={!roomCode}
           >
             Join Meeting
           </Button>

@@ -1,11 +1,16 @@
+// app/meeting/[room]/page.tsx (Dynamic meeting page)
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { socket, peers, createPeerConnection } from "@/utils/rtc";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
+import { useParams } from "next/navigation";
 
 export default function MeetingPage() {
+  const params = useParams();
+  const room = params.room as string;
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteVideos, setRemoteVideos] = useState<{ [id: string]: MediaStream }>({});
@@ -17,6 +22,15 @@ export default function MeetingPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       setLocalStream(stream);
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      // Join the room after connecting
+      if (socket.connected) {
+        socket.emit("join-room", room);
+      } else {
+        socket.on("connect", () => {
+          socket.emit("join-room", room);
+        });
+      }
 
       socket.on("user-joined", async (id: string) => {
         const pc = createPeerConnection(id, stream, setRemoteVideos);
@@ -44,6 +58,18 @@ export default function MeetingPage() {
         const pc = peers[from];
         if (pc && candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
       });
+
+      socket.on("user-left", (id: string) => {
+        if (peers[id]) {
+          peers[id].close();
+          delete peers[id];
+        }
+        setRemoteVideos((prev) => {
+          const newV = { ...prev };
+          delete newV[id];
+          return newV;
+        });
+      });
     };
 
     init();
@@ -53,8 +79,10 @@ export default function MeetingPage() {
       socket.off("offer");
       socket.off("answer");
       socket.off("ice-candidate");
+      socket.off("user-left");
+      socket.off("connect");
     };
-  }, []);
+  }, [room]);
 
   useEffect(() => {
     if (localStream) {
